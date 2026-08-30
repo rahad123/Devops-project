@@ -325,6 +325,19 @@ Run: `cp .env.example .env && docker compose up -d postgres`
 Run: `docker compose ps`
 Expected: `postgres` service shows `healthy` status within ~10 seconds.
 
+- [ ] **Step 6: Copy the root `.env` into `backend/` for local (non-Docker) tooling**
+
+Run: `cp .env backend/.env`
+
+This is required because every later backend task runs Prisma CLI commands and `npm run test:e2e` from inside `backend/`, and both Prisma and NestJS's `ConfigModule` resolve `.env` relative to the current working directory — they will not find the root-level `.env` created in Step 4. The root `.env` remains the single file you edit by hand; re-run this copy if you change root `.env` values before a later task needs them. Docker Compose itself does not need this copy — it reads the root `.env` directly for variable interpolation.
+
+- [ ] **Step 7: Add `backend/.env` to `.gitignore` explicitly (defense in depth)**
+
+The root `.gitignore`'s `.env` pattern already matches `backend/.env`, but confirm it:
+
+Run: `git check-ignore backend/.env`
+Expected: prints `backend/.env` (confirms it's ignored).
+
 - [ ] **Step 6: Commit**
 
 ```bash
@@ -2498,7 +2511,7 @@ RUN npm run build
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY package.json ./
@@ -2508,6 +2521,8 @@ EXPOSE 3000
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "dist/main.js"]
 ```
+
+Runtime copies `node_modules` from the `build` stage, not `deps` — `npx prisma generate` (which writes the generated client into `node_modules/@prisma/client` and `node_modules/.prisma`) only ran in `build`. Copying from `deps` here would ship a runtime image with an ungenerated Prisma client.
 
 - [ ] **Step 3: Write the entrypoint script**
 
