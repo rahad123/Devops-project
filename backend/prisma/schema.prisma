@@ -12,6 +12,29 @@ enum Role {
   CUSTOMER
 }
 
+enum BusType {
+  AC_SEATER
+  AC_SLEEPER
+  NON_AC_SEATER
+  NON_AC_SLEEPER
+}
+
+enum Deck {
+  LOWER
+  UPPER
+}
+
+enum SeatType {
+  SEATER
+  SLEEPER
+}
+
+enum SeatStatus {
+  AVAILABLE
+  HELD
+  BOOKED
+}
+
 model User {
   id                 String              @id @default(uuid())
   name               String
@@ -43,4 +66,90 @@ model PasswordResetToken {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+}
+
+model Operator {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  buses     Bus[]
+}
+
+model Bus {
+  id         String     @id @default(uuid())
+  operatorId String
+  operator   Operator   @relation(fields: [operatorId], references: [id])
+  name       String
+  busType    BusType
+  totalSeats Int
+  seats      Seat[]
+  schedules  Schedule[]
+}
+
+model Seat {
+  id            String         @id @default(uuid())
+  busId         String
+  bus           Bus            @relation(fields: [busId], references: [id])
+  seatNumber    String
+  deck          Deck
+  seatType      SeatType
+  row           Int
+  column        Int
+  scheduleSeats ScheduleSeat[]
+
+  @@unique([busId, seatNumber])
+}
+
+model Route {
+  id          String     @id @default(uuid())
+  source      String
+  destination String
+  distanceKm  Int?
+  schedules   Schedule[]
+}
+
+model Schedule {
+  id             String           @id @default(uuid())
+  busId          String
+  bus            Bus              @relation(fields: [busId], references: [id])
+  routeId        String
+  route          Route            @relation(fields: [routeId], references: [id])
+  departureTime  DateTime
+  arrivalTime    DateTime
+  fare           Decimal          @db.Decimal(10, 2)
+  serviceCharge  Decimal          @default(0) @db.Decimal(10, 2)
+  boardingPoints BoardingPoint[]
+  droppingPoints DroppingPoint[]
+  scheduleSeats  ScheduleSeat[]
+}
+
+model ScheduleSeat {
+  id           String     @id @default(uuid())
+  scheduleId   String
+  schedule     Schedule   @relation(fields: [scheduleId], references: [id])
+  seatId       String
+  seat         Seat       @relation(fields: [seatId], references: [id])
+  status       SeatStatus @default(AVAILABLE)
+  heldByUserId String?
+  heldAt       DateTime?
+  expiresAt    DateTime?
+  bookedAt     DateTime?
+
+  @@unique([scheduleId, seatId])
+}
+
+model BoardingPoint {
+  id         String   @id @default(uuid())
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id])
+  name       String
+  time       DateTime
+}
+
+model DroppingPoint {
+  id         String   @id @default(uuid())
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id])
+  name       String
+  time       DateTime
 }
