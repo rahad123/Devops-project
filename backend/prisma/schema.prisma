@@ -10,6 +10,8 @@ datasource db {
 
 enum Role {
   CUSTOMER
+  ADMIN
+  STAFF
 }
 
 enum BusType {
@@ -35,6 +37,17 @@ enum SeatStatus {
   BOOKED
 }
 
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  INITIATED
+  COMPLETED
+  FAILED
+}
+
 model User {
   id                 String              @id @default(uuid())
   name               String
@@ -46,6 +59,8 @@ model User {
   updatedAt          DateTime            @updatedAt
   refreshTokens      RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  bookings           Booking[]
+  payments           Payment[]
 }
 
 model RefreshToken {
@@ -121,6 +136,7 @@ model Schedule {
   boardingPoints BoardingPoint[]
   droppingPoints DroppingPoint[]
   scheduleSeats  ScheduleSeat[]
+  bookings       Booking[]
 }
 
 model ScheduleSeat {
@@ -134,22 +150,64 @@ model ScheduleSeat {
   heldAt       DateTime?
   expiresAt    DateTime?
   bookedAt     DateTime?
+  bookingId    String?
+  booking      Booking?   @relation(fields: [bookingId], references: [id])
 
   @@unique([scheduleId, seatId])
 }
 
 model BoardingPoint {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   scheduleId String
-  schedule   Schedule @relation(fields: [scheduleId], references: [id])
+  schedule   Schedule  @relation(fields: [scheduleId], references: [id])
   name       String
   time       DateTime
+  bookings   Booking[]
 }
 
 model DroppingPoint {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   scheduleId String
-  schedule   Schedule @relation(fields: [scheduleId], references: [id])
+  schedule   Schedule  @relation(fields: [scheduleId], references: [id])
   name       String
   time       DateTime
+  bookings   Booking[]
+}
+
+model Booking {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  scheduleId      String
+  schedule        Schedule      @relation(fields: [scheduleId], references: [id])
+  pnr             String        @unique
+  status          BookingStatus @default(CONFIRMED)
+  totalFare       Decimal       @db.Decimal(10, 2)
+  seatNumbers     String[]
+  boardingPointId String
+  boardingPoint   BoardingPoint @relation(fields: [boardingPointId], references: [id])
+  droppingPointId String
+  droppingPoint   DroppingPoint @relation(fields: [droppingPointId], references: [id])
+  seats           ScheduleSeat[]
+  createdAt       DateTime      @default(now())
+  cancelledAt     DateTime?
+  checkedInAt     DateTime?
+  payment         Payment?
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  bkashPaymentId  String        @unique
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  scheduleId      String
+  seatNumbers     String[]
+  boardingPointId String
+  droppingPointId String
+  amount          Decimal       @db.Decimal(10, 2)
+  status          PaymentStatus @default(INITIATED)
+  bookingId       String?       @unique
+  booking         Booking?      @relation(fields: [bookingId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }

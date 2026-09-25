@@ -8,8 +8,4 @@ export class ReleaseSeatsDto {
   @ArrayMaxSize(6)
   @IsString({ each: true })
   seatNumbers: string[];
-
-  @ApiProperty({ description: 'User ID who holds the seats' })
-  @IsString()
-  userId: string;
 }

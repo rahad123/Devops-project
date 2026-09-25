@@ -1,26 +1,39 @@
-import { PrismaClient, BusType, Deck, SeatType, SeatStatus } from '@prisma/client';
+import { PrismaClient, BusType, Deck, SeatType, SeatStatus, Role } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 const OPERATORS = [
-  { id: '00000000-0000-0000-0000-000000000001', name: 'Green Line Travels' },
-  { id: '00000000-0000-0000-0000-000000000002', name: 'Royal Express' },
+  { id: '00000000-0000-0000-0000-000000000001', name: 'Shyamoli Paribahan' },
+  { id: '00000000-0000-0000-0000-000000000002', name: 'Hanif Enterprise' },
 ];
 
 const BUSES = [
-  { id: '00000000-0000-0000-0001-000000000001', operatorIdx: 0, name: 'GL Volvo 1', busType: BusType.AC_SEATER, rows: 10, totalSeats: 40 },
-  { id: '00000000-0000-0000-0001-000000000002', operatorIdx: 0, name: 'GL Sleeper 1', busType: BusType.AC_SLEEPER, rows: 9, totalSeats: 36 },
-  { id: '00000000-0000-0000-0001-000000000003', operatorIdx: 1, name: 'RE Non-AC 1', busType: BusType.NON_AC_SEATER, rows: 10, totalSeats: 40 },
-  { id: '00000000-0000-0000-0001-000000000004', operatorIdx: 1, name: 'RE Sleeper 1', busType: BusType.NON_AC_SLEEPER, rows: 8, totalSeats: 32 },
-  { id: '00000000-0000-0000-0001-000000000005', operatorIdx: 0, name: 'GL Volvo 2', busType: BusType.AC_SEATER, rows: 10, totalSeats: 40 },
+  { id: '00000000-0000-0000-0001-000000000001', operatorIdx: 0, name: 'Shyamoli Volvo 1', busType: BusType.AC_SEATER, rows: 10, totalSeats: 40 },
+  { id: '00000000-0000-0000-0001-000000000002', operatorIdx: 0, name: 'Shyamoli Sleeper 1', busType: BusType.AC_SLEEPER, rows: 9, totalSeats: 36 },
+  { id: '00000000-0000-0000-0001-000000000003', operatorIdx: 1, name: 'Hanif Non-AC 1', busType: BusType.NON_AC_SEATER, rows: 10, totalSeats: 40 },
+  { id: '00000000-0000-0000-0001-000000000004', operatorIdx: 1, name: 'Hanif Sleeper 1', busType: BusType.NON_AC_SLEEPER, rows: 8, totalSeats: 32 },
+  { id: '00000000-0000-0000-0001-000000000005', operatorIdx: 0, name: 'Shyamoli Volvo 2', busType: BusType.AC_SEATER, rows: 10, totalSeats: 40 },
 ];
 
 const ROUTES = [
-  { id: '00000000-0000-0000-0002-000000000001', source: 'Mumbai', destination: 'Pune', distanceKm: 150 },
-  { id: '00000000-0000-0000-0002-000000000002', source: 'Bangalore', destination: 'Chennai', distanceKm: 350 },
-  { id: '00000000-0000-0000-0002-000000000003', source: 'Delhi', destination: 'Jaipur', distanceKm: 280 },
-  { id: '00000000-0000-0000-0002-000000000004', source: 'Hyderabad', destination: 'Bangalore', distanceKm: 570 },
+  { id: '00000000-0000-0000-0002-000000000001', source: 'Sylhet', destination: 'Dhaka', distanceKm: 247 },
+  { id: '00000000-0000-0000-0002-000000000002', source: 'Dhaka', destination: 'Chattogram', distanceKm: 264 },
+  { id: '00000000-0000-0000-0002-000000000003', source: 'Dhaka', destination: 'Cox\'s Bazar', distanceKm: 414 },
+  { id: '00000000-0000-0000-0002-000000000004', source: 'Dhaka', destination: 'Rajshahi', distanceKm: 256 },
 ];
+
+const BOARDING_POINTS: Record<string, string[]> = {
+  Sylhet: ['Sylhet Kadamtoli Bus Terminal', 'Sylhet Amberkhana'],
+  Dhaka: ['Dhaka Gabtoli', 'Dhaka Sayedabad'],
+};
+
+const DROPPING_POINTS: Record<string, string[]> = {
+  Dhaka: ['Dhaka Sayedabad Bus Terminal'],
+  Chattogram: ['Chattogram GEC Circle'],
+  "Cox's Bazar": ["Cox's Bazar Bus Terminal"],
+  Rajshahi: ['Rajshahi Shiroil Bus Terminal'],
+};
 
 const COLUMNS = ['A', 'B', 'C', 'D'];
 
@@ -41,8 +54,33 @@ function generateSeats(busId: string, rows: number, isSleeper: boolean) {
   return seats;
 }
 
+async function seedAdmin() {
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) {
+    console.log('  Skipped admin seed: ADMIN_EMAIL/ADMIN_PASSWORD not set');
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  await prisma.user.upsert({
+    where: { email: email.toLowerCase() },
+    update: {},
+    create: {
+      name: 'Admin',
+      phone: '0000000000',
+      email: email.toLowerCase(),
+      passwordHash,
+      role: Role.ADMIN,
+    },
+  });
+  console.log(`  Upserted admin user (${email})`);
+}
+
 async function main() {
   console.log('Seeding...');
+
+  await seedAdmin();
 
   // Upsert operators
   for (const op of OPERATORS) {
@@ -87,6 +125,11 @@ async function main() {
   }
   console.log(`  Upserted ${ROUTES.length} routes`);
 
+  // Bookings reference schedules/boarding/dropping points, which are about to be
+  // wiped and regenerated with new ids - any existing bookings are stale.
+  await prisma.booking.deleteMany();
+  console.log('  Cleared bookings');
+
   // Delete and recreate schedules + boarding/dropping points
   await prisma.boardingPoint.deleteMany();
   await prisma.droppingPoint.deleteMany();
@@ -115,7 +158,10 @@ async function main() {
         where: { busId: bus.id },
       });
 
-      const schedule = await prisma.schedule.create({
+      const boardingNames = BOARDING_POINTS[route.source] ?? [`${route.source} Bus Terminal`];
+      const droppingNames = DROPPING_POINTS[route.destination] ?? [`${route.destination} Bus Terminal`];
+
+      await prisma.schedule.create({
         data: {
           busId: bus.id,
           routeId: route.id,
@@ -124,15 +170,16 @@ async function main() {
           fare,
           serviceCharge: 25,
           boardingPoints: {
-            create: [
-              { name: `${route.source} Central Station`, time: departure },
-              { name: `${route.source} Bypass`, time: new Date(departure.getTime() + 15 * 60 * 1000) },
-            ],
+            create: boardingNames.map((name, idx) => ({
+              name,
+              time: new Date(departure.getTime() + idx * 15 * 60 * 1000),
+            })),
           },
           droppingPoints: {
-            create: [
-              { name: `${route.destination} Main Stand`, time: arrival },
-            ],
+            create: droppingNames.map((name) => ({
+              name,
+              time: arrival,
+            })),
           },
           scheduleSeats: {
             create: busSeats.map((seat) => ({

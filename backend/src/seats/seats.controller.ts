@@ -4,14 +4,20 @@ import {
   Post,
   Body,
   Param,
+  Req,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { SeatsService } from './seats.service';
 import { HoldSeatsDto } from './dto/hold-seats.dto';
 import { ReleaseSeatsDto } from './dto/release-seats.dto';
 import { Public } from '../auth/decorators/public.decorator';
+
+interface AuthenticatedRequest extends Request {
+  user: { userId: string; email: string; role: string };
+}
 
 @ApiTags('Seats')
 @Controller('schedules')
@@ -38,11 +44,12 @@ export class SeatsController {
   async holdSeats(
     @Param('scheduleId') scheduleId: string,
     @Body() dto: HoldSeatsDto,
+    @Req() req: AuthenticatedRequest,
   ) {
     const result = await this.seatsService.holdSeats(
       scheduleId,
       dto.seatNumbers,
-      dto.userId,
+      req.user.userId,
     );
     return {
       success: true,
@@ -58,11 +65,12 @@ export class SeatsController {
   async releaseSeats(
     @Param('scheduleId') scheduleId: string,
     @Body() dto: ReleaseSeatsDto,
+    @Req() req: AuthenticatedRequest,
   ) {
     const result = await this.seatsService.releaseSeats(
       scheduleId,
       dto.seatNumbers,
-      dto.userId,
+      req.user.userId,
     );
     return {
       success: true,
