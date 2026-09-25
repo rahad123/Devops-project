@@ -8,8 +8,13 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { SearchModule } from './search/search.module';
 import { SeatsModule } from './seats/seats.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { UsersModule } from './users/users.module';
+import { AdminModule } from './admin/admin.module';
+import { StaffModule } from './staff/staff.module';
+import { PaymentsModule } from './payments/payments.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { CustomerOnlyGuard } from './auth/guards/customer-only.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 
 @Module({
   imports: [
@@ -19,12 +24,17 @@ import { CustomerOnlyGuard } from './auth/guards/customer-only.guard';
     AuthModule,
     SearchModule,
     SeatsModule,
+    BookingsModule,
+    UsersModule,
+    AdminModule,
+    StaffModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: CustomerOnlyGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
